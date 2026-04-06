@@ -1,0 +1,52 @@
+name: Unzip ZIP File
+
+on:
+  push:
+    paths:
+      - '**.zip'          # يشتغل لما ترفع أي ملف zip
+  workflow_dispatch:      # عشان تقدر تشغله يدويًا
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # مهم عشان يقدر يرفع التغييرات
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # عشان يجيب كل التاريخ
+
+      - name: Find and extract the ZIP file
+        run: |
+          # لو في أكتر من zip، هنفك أول واحد (عدل لو عايز تحدد اسم معين)
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          
+          if [ -z "$ZIP_FILE" ]; then
+            echo "No ZIP file found!"
+            exit 1
+          fi
+          
+          echo "Found ZIP: $ZIP_FILE"
+          
+          # نفك الـ zip
+          unzip -o "$ZIP_FILE" -d extracted_temp
+          
+          # نقل المحتويات للروت (أو مجلد معين لو عايز)
+          rsync -av extracted_temp/ . --exclude="extracted_temp"
+          
+          # حذف الـ zip القديم والمجلد المؤقت
+          rm -f "$ZIP_FILE"
+          rm -rf extracted_temp
+          
+          echo "ZIP extracted successfully!"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add .
+          git diff --cached --quiet || git commit -m "Extract ZIP file contents automatically"
+          git push
